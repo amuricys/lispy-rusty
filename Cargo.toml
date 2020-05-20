@@ -1,0 +1,6 @@
+[package]
+
+name = "lispy_rusty"
+version = "0.0.1"
+authors = [ "Deco <decomuricy@gmail.com>", "GC <gabaconrado@gmail.com>", 
+"MD <mdanilor@gmail.com>" ]
