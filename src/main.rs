@@ -1,4 +1,7 @@
+#[macro_use]
+
 use std::io::{self, Write};
+mod parser;
 
 fn main() {
     /* Initial prompt and shit */
@@ -14,6 +17,8 @@ fn main() {
 
         /* Read user input line */
         io::stdin().read_line(&mut x).expect("Failed to read line");
+
+        x = parser::parse(x);
 
         /* Record input */
         input_history.push(x.clone());
