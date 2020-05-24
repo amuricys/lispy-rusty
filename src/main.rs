@@ -1,5 +1,5 @@
 #[macro_use]
-
+extern crate nom;
 use std::io::{self, Write};
 mod parser;
 
@@ -18,7 +18,7 @@ fn main() {
         /* Read user input line */
         io::stdin().read_line(&mut x).expect("Failed to read line");
 
-        x = parser::parse(x);
+        x = parser::parse(&x.to_owned());
 
         /* Record input */
         input_history.push(x.clone());
