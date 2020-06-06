@@ -18,12 +18,22 @@ fn main() {
         /* Read user input line */
         io::stdin().read_line(&mut x).expect("Failed to read line");
 
-        x = parser::parse(&x.to_owned());
-
         /* Record input */
         input_history.push(x.clone());
 
-        /* Print user input line */
-        println!("{}", x);
+        /*  TOUNDERSTAND: Why does "let parsed_input_expression = parser::parse(&x.to_owned());" not work?
+            Parse input into expression tree */
+        let to_parse = x.to_owned();
+        let parsed_input_expression = parser::parse(&to_parse);
+
+        /* Print user input line (just the parsed tree for now) */
+        match parsed_input_expression {
+            Ok((_, expr)) => {
+                println!("{}", parser::eval(expr));
+            }
+            Err(_) => {
+                println!("Fuck you, boah")
+            }
+        }
     }
 }
