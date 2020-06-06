@@ -9,13 +9,13 @@ use nom::{
 };
 
 #[derive(Debug)]
-pub enum Expression2 {
+pub enum Expression {
     Num(i32),
-    Expr(char, Box<Expression2>, Box<Expression2>),
+    Expr(char, Box<Expression>, Box<Expression>),
 }
 
 /* WIP: Structure of recursive parser seems correct, we're fighting the nom DSL syntax now.
-   An expression is either a simple literal (first branch of the alt! below) , or an open-parentheses
+   An expression is either a simple literal (first branch of the alt below) , or an open-parentheses
    expression with an operator in front. It actually doesn't have to be an operator, could be yet another
    open-parentheses expression. Lisp expressions can simply be lists of n other expressions,
    meaning the following is valid:
@@ -24,15 +24,19 @@ pub enum Expression2 {
 
    But we'll pretend the first element has to be an operator for now, and that the operands can be recursive. */
 
-fn parse_num2(i: &[u8]) -> IResult<&[u8], Expression2, (&[u8], nom::error::ErrorKind)> {
+fn parse_expression_top_level(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+    alt((parse_num, parse_expression))(i)
+}
+
+fn parse_num(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _first_spaces) = take_while(is_space)(i)?;
     let (rest, digit) = take_while1(is_digit)(rest)?;
     let (rest, _end_spaces) = take_while(is_space)(rest)?;
 
-    Ok((rest, Expression2::Num(from_u8_array_to_i32(digit))))
+    Ok((rest, Expression::Num(from_u8_array_to_i32(digit))))
 }
 
-fn parse_expression2(i: &[u8]) -> IResult<&[u8], Expression2, (&[u8], nom::error::ErrorKind)> {
+fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _paren1) = char('(')(i)?;
     let (rest, _first_spaces) = take_while(is_space)(rest)?;
     let (rest, op) = one_of("+-/*")(rest)?;
@@ -41,11 +45,7 @@ fn parse_expression2(i: &[u8]) -> IResult<&[u8], Expression2, (&[u8], nom::error
     let (rest, expr_op2) = parse_expression_top_level(rest)?;
     let (rest, _paren2) = char(')')(rest)?;
 
-    Ok((rest, Expression2::Expr(op, Box::new(expr_op1), Box::new(expr_op2))))
-}
-
-fn parse_expression_top_level(i: &[u8]) -> IResult<&[u8], Expression2, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_num2, parse_expression2))(i)
+    Ok((rest, Expression::Expr(op, Box::new(expr_op1), Box::new(expr_op2))))
 }
 
 fn from_u8_array_to_i32(input: &[u8]) -> i32 {
@@ -55,11 +55,11 @@ fn from_u8_array_to_i32(input: &[u8]) -> i32 {
         .expect("Error string -> i32")
 }
 
-pub fn parse(input: &str) -> IResult<&[u8], Expression2, (&[u8], nom::error::ErrorKind)> {
+pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let expression = parse_expression_top_level(input.as_bytes());
     expression
 }
 
-pub fn eval (expr: Expression2) -> String {
+pub fn eval (expr: Expression) -> String {
      format!("{:?}", expr)
 }
