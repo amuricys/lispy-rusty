@@ -1,15 +1,18 @@
-use nom::{branch::alt,
-          bytes::complete::{take_while, take_while1, take_till, tag, is_not},
+use nom::{switch,
+          branch::alt,
+          bytes::complete::{take_while, take_while1, take_till, tag, is_not, take},
           sequence::delimited, character::{is_space, is_digit},
           character::complete::{char, one_of},
           combinator::{cut, map, opt, value},
           Err, IResult, AsChar};
+use nom::character::is_alphanumeric;
 
 #[derive(Debug)]
 pub enum Atom {
     Int(i64),
     Char(char),
     Bool(bool),
+    Symbol(String),
 }
 
 #[derive(Debug)]
@@ -18,59 +21,62 @@ pub enum Expression {
     Expr(Box<Expression>, Vec<Expression>),
 }
 
-/* WIP: Structure of recursive parser seems correct, we're fighting the nom DSL syntax now.
-   An expression is either a simple literal (first branch of the alt below) , or an open-parentheses
-   expression with an operator in front. It actually doesn't have to be an operator, could be yet another
-   open-parentheses expression. Lisp expressions can simply be lists of n other expressions,
-   meaning the following is valid:
+fn is_space_lisp(c: u8) -> bool {
+    is_space(c) || c.as_char() == ','
+}
 
-      (((((function-that-returns-another-function arg1 arg2) arg3) arg4) arg5) arg6)
-
-   But we'll pretend the first element has to be an operator for now, and that the operands can be recursive. */
+fn is_valid_symbol_char(c: u8) -> bool {
+    is_alphanumeric(c) || "*/+-_!?><".chars().any(|x| x == c.as_char())
+}
 
 fn parse_expression_top_level(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_atom, parse_expression))(i)
+    alt((parse_atom, parse_expression2))(i)
 }
 
 fn parse_num(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    let (rest, _first_spaces) = take_while(is_space)(i)?;
+    let (rest, _spaces) = take_while(is_space_lisp)(i)?;
     let (rest, digit) = take_while1(is_digit)(rest)?;
-    let (rest, _end_spaces) = take_while(is_space)(rest)?;
 
     Ok((rest, Expression::At(Atom::Int(from_u8_array_to_i64(digit)))))
 }
 
 fn parse_char(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    let (rest, _first_spaces) = take_while(is_space)(i)?;
+    let (rest, _spaces) = take_while(is_space_lisp)(i)?;
     let (rest, _escape) = char('\\')(rest)?;
     let (rest, char_string) =
-        alt((is_not("\\"),
-             alt((tag("\\n"),
-                  tag("\\t"),
-                  tag("\\r")))))
-            (rest)?;
-    let (rest, _end_spaces) = take_while1(is_space)(rest)?; // something like \abcdef is not valid
+        alt((tag("\\n"),
+             tag("\\t"),
+             tag("\\r"),
+             tag("\\"),
+             take(1 as usize)))(rest)?;
 
     Ok((rest, Expression::At(Atom::Char(char_string[0].as_char()))))
 }
 
+fn parse_symbol(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+    let (rest, _spaces) = take_while(is_space_lisp)(i)?;
+    let (rest, symbol) = take_while1(is_valid_symbol_char)(rest)?;
+
+    let wat = String::from_utf8(Vec::from(symbol)).expect("Me dê uma porra de uma string");
+
+    Ok((rest, Expression::At(Atom::Symbol(wat))))
+}
+
 fn parse_bool(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    let (rest, _first_spaces) = take_while(is_space)(i)?;
+    let (rest, _spaces) = take_while(is_space_lisp)(i)?;
     let (rest, boolean) = alt((tag("true"), tag("false")))(rest)?;
-    let (rest, _end_spaces) = take_while(is_space)(rest)?;
 
     Ok((rest, Expression::At(Atom::Bool(from_u8_array_to_bool(boolean)))))
 }
 
 fn parse_atom(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_num, parse_char, parse_bool))(i)
+    alt((parse_num, parse_char, parse_bool, parse_symbol))(i)
 }
 
 fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    let (rest, _paren1) = char('(')(i)?;
-    let (rest, _first_spaces) = take_while(is_space)(rest)?;
+    let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
+    let (rest, _paren1) = char('(')(rest)?;
     let (rest, op_expression) = parse_expression_top_level(rest)?;
-    let (rest, _spaces_between_operator_and_first_operand) = take_while(is_space)(rest)?;
     let (rest, expr_op1) = parse_expression_top_level(rest)?;
     let (rest, expr_op2) = parse_expression_top_level(rest)?;
     let (rest, _paren2) = char(')')(rest)?;
@@ -81,6 +87,32 @@ fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::
 
     Ok((rest, Expression::Expr(Box::new(op_expression), args)))
 }
+
+fn parse_expression2(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+    let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
+    let (rest, _paren1) = char('(')(rest)?;
+    let (rest, op_expression) = parse_expression_top_level(rest)?;
+
+    let mut args = Vec::new();
+
+    let mut new_rest = rest;
+    let mut should_continue = true;
+    while should_continue {
+        let could_parse = parse_expression_top_level(new_rest);
+        match could_parse {
+            Ok((other_new_rest, expr)) => {
+                args.push(expr);
+                new_rest = other_new_rest;
+            }
+            Err(_) => {
+                should_continue = false;
+            }
+        }
+    }
+
+    Ok((rest, Expression::Expr(Box::new(op_expression), args)))
+}
+
 
 fn from_u8_array_to_i64(input: &[u8]) -> i64 {
     std::str::from_utf8(input)
@@ -102,6 +134,33 @@ pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::Erro
     expression
 }
 
+fn eval_expr(expr: Expression) -> Expression {
+    match expr {
+        Expression::Expr(op, args) => {
+            let evaled_fn_symbol = eval_expr(*op);
+            let evaled_args = args.into_iter().map(eval_expr);
+            match evaled_fn_symbol {
+                Expression::At(Atom::Symbol(sym)) => {
+                    if &sym == "+" {
+                        let int_res = evaled_args.fold(0 as i64, |acc, arg | {
+                            match arg {
+                                Expression::At(Atom::Int(x)) => {x + acc}
+                                _ => panic!("Tried to sum wrong type")
+                            }
+                        });
+                        Expression::At(Atom::Int(int_res))
+                    } else {
+                        panic!("Unimplemented built in function")
+                    }
+                }
+                _ =>  panic!("Tried to evaluate a non-symbol or function")
+            }
+        }
+        Expression::At(_) => expr
+    }
+}
+
 pub fn eval(expr: Expression) -> String {
-    format!("{:?}", expr)
+    let evaled_expr = eval_expr(expr);
+    format!("{:?}", evaled_expr)
 }
