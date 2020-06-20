@@ -1,10 +1,8 @@
-use nom::{switch,
-          branch::alt,
-          bytes::complete::{take_while, take_while1, take_till, tag, is_not, take},
-          sequence::delimited, character::{is_space, is_digit},
-          character::complete::{char, one_of},
-          combinator::{cut, map, opt, value},
-          Err, IResult, AsChar};
+use nom::{branch::alt,
+          bytes::complete::{take_while, take_while1, tag, take},
+          character::{is_space, is_digit},
+          character::complete::{char},
+          IResult, AsChar};
 use nom::character::is_alphanumeric;
 
 #[derive(Debug)]
