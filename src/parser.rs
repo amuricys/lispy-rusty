@@ -30,7 +30,7 @@ fn is_valid_symbol_char(c: u8) -> bool {
 }
 
 fn parse_expression_top_level(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_atom, parse_expression2))(i)
+    alt((parse_atom, parse_expression))(i)
 }
 
 fn parse_num(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
@@ -77,21 +77,6 @@ fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::
     let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
     let (rest, _paren1) = char('(')(rest)?;
     let (rest, op_expression) = parse_expression_top_level(rest)?;
-    let (rest, expr_op1) = parse_expression_top_level(rest)?;
-    let (rest, expr_op2) = parse_expression_top_level(rest)?;
-    let (rest, _paren2) = char(')')(rest)?;
-
-    let mut args = Vec::new();
-    args.push(expr_op1);
-    args.push(expr_op2);
-
-    Ok((rest, Expression::Expr(Box::new(op_expression), args)))
-}
-
-fn parse_expression2(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
-    let (rest, _paren1) = char('(')(rest)?;
-    let (rest, op_expression) = parse_expression_top_level(rest)?;
 
     let mut args = Vec::new();
 
@@ -109,8 +94,10 @@ fn parse_expression2(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error:
             }
         }
     }
+    let (new_rest, _end_spaces) = take_while(is_space_lisp)(new_rest)?;
+    let (newest_rest, _paren2) = char(')')(new_rest)?;
 
-    Ok((rest, Expression::Expr(Box::new(op_expression), args)))
+    Ok((newest_rest, Expression::Expr(Box::new(op_expression), args)))
 }
 
 
