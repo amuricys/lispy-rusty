@@ -4,6 +4,8 @@ use nom::{branch::alt,
           character::complete::{char},
           IResult, AsChar};
 use nom::character::is_alphanumeric;
+use std::collections::HashMap;
+use parser::Expression::EvalError;
 
 #[derive(Debug)]
 pub enum Atom {
@@ -14,9 +16,16 @@ pub enum Atom {
 }
 
 #[derive(Debug)]
+pub enum EvaluationError {
+    DivideByZero,
+    FunctionNotFound
+}
+
+#[derive(Debug)]
 pub enum Expression {
     At(Atom),
     Expr(Box<Expression>, Vec<Expression>),
+    EvalError(EvaluationError),
 }
 
 fn is_space_lisp(c: u8) -> bool {
@@ -48,6 +57,7 @@ fn parse_char(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorK
              tag("\\"),
              take(1 as usize)))(rest)?;
 
+    // TODO: check if char string has size 2 to correctly parse \n, \t etc
     Ok((rest, Expression::At(Atom::Char(char_string[0].as_char()))))
 }
 
@@ -119,33 +129,38 @@ pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::Erro
     expression
 }
 
-fn eval_expr(expr: Expression) -> Expression {
+fn eval_expr2(expr: Expression, vars: &HashMap<String, fn(i64, i64) -> i64>) -> Expression {
     match expr {
         Expression::Expr(op, args) => {
-            let evaled_fn_symbol = eval_expr(*op);
-            let evaled_args = args.into_iter().map(eval_expr);
+            let evaled_fn_symbol = eval_expr2(*op, vars);
+            let evaled_args = args.into_iter().map(| x | eval_expr2(x, vars));
             match evaled_fn_symbol {
                 Expression::At(Atom::Symbol(sym)) => {
-                    if &sym == "+" {
-                        let int_res = evaled_args.fold(0 as i64, |acc, arg | {
-                            match arg {
-                                Expression::At(Atom::Int(x)) => {x + acc}
-                                _ => panic!("Tried to sum wrong type")
-                            }
-                        });
-                        Expression::At(Atom::Int(int_res))
-                    } else {
-                        panic!("Unimplemented built in function")
+                    match vars.get(&sym) {
+                        Some(rust_fn) => {
+                            // TODO: Use fold_first here
+                            let int_res = evaled_args.fold(0 as i64, | acc, arg | {
+                                match arg {
+                                    Expression::At(Atom::Int(x)) => {rust_fn(acc, x)}
+                                    _ => panic!(format!("Tried to apply built-in function {:?} to wrong type!", sym))
+                                }
+                            });
+                            Expression::At(Atom::Int(int_res))
+                        }
+                        None => {
+                            Expression::EvalError(EvaluationError::FunctionNotFound)
+                        }
                     }
                 }
                 _ =>  panic!("Tried to evaluate a non-symbol or function")
             }
         }
-        Expression::At(_) => expr
+        Expression::At(_) => { expr }
+        Expression::EvalError(_) => { expr }
     }
 }
 
-pub fn eval(expr: Expression) -> String {
-    let evaled_expr = eval_expr(expr);
+pub fn eval(expr: Expression, vars: &HashMap<String, fn(i64, i64) -> i64>) -> String {
+    let evaled_expr = eval_expr2(expr, vars);
     format!("{:?}", evaled_expr)
 }
