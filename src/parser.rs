@@ -20,6 +20,7 @@ pub enum EvaluationError {
     FunctionNotFound,
     NotAFunction,
     WrongType(String),
+    WrongArity(i64, i64) // (Expected, Received)
 }
 
 #[derive(Debug)]
