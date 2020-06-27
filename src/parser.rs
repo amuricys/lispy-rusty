@@ -5,7 +5,6 @@ use nom::{branch::alt,
           IResult, AsChar};
 use nom::character::is_alphanumeric;
 use std::collections::HashMap;
-use parser::Expression::EvalError;
 
 #[derive(Debug)]
 pub enum Atom {
@@ -18,15 +17,26 @@ pub enum Atom {
 #[derive(Debug)]
 pub enum EvaluationError {
     DivideByZero,
-    FunctionNotFound
+    FunctionNotFound,
+    NotAFunction,
+    WrongType(String),
 }
 
 #[derive(Debug)]
 pub enum Expression {
     At(Atom),
     Expr(Box<Expression>, Vec<Expression>),
-    EvalError(EvaluationError),
 }
+
+/* TODO: Discover how to parametrize the Ok return value
+   E.g.:  When evaluation of summation goes OK, the result is not
+   just any Expression, it is in fact an Expression that contains an integer.
+   Any value of that return Expression is going to successfully pattern match on
+   the pattern
+   Expression::At(Atom::Int(val))
+
+   How do we get this guarantee on the type level? */
+pub type EvalResult = Result<Expression, EvaluationError>;
 
 fn is_space_lisp(c: u8) -> bool {
     is_space(c) || c.as_char() == ','
@@ -129,38 +139,43 @@ pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::Erro
     expression
 }
 
-fn eval_expr2(expr: Expression, vars: &HashMap<String, fn(i64, i64) -> i64>) -> Expression {
+fn map_m(maybes: Vec<EvalResult>) -> Result<Vec<Expression>, EvalResult> {
+    let mut to_return = Vec::new();
+    for eval_res in maybes {
+        match eval_res {
+            Err(_) =>{ return Err(eval_res) }
+            Ok(expr) => { to_return.push(expr) }
+        }
+    }
+    Ok(to_return)
+}
+
+fn eval_expr3(expr: Expression, vars: &HashMap<String, fn(Vec<Expression>) -> EvalResult>) -> EvalResult {
     match expr {
+        Expression::At(_) => { Ok(expr) }
         Expression::Expr(op, args) => {
-            let evaled_fn_symbol = eval_expr2(*op, vars);
-            let evaled_args = args.into_iter().map(| x | eval_expr2(x, vars));
-            match evaled_fn_symbol {
-                Expression::At(Atom::Symbol(sym)) => {
-                    match vars.get(&sym) {
-                        Some(rust_fn) => {
-                            // TODO: Use fold_first here
-                            let int_res = evaled_args.fold(0 as i64, | acc, arg | {
-                                match arg {
-                                    Expression::At(Atom::Int(x)) => {rust_fn(acc, x)}
-                                    _ => panic!(format!("Tried to apply built-in function {:?} to wrong type!", sym))
-                                }
-                            });
-                            Expression::At(Atom::Int(int_res))
+            let evaled_fn_symbol = eval_expr3(*op, vars)?;
+            let evaled_args = args.into_iter().map(|x| eval_expr3(x, vars));
+            let try_correct_evaled_args = map_m(evaled_args.collect());
+            match try_correct_evaled_args {
+                Err(err) => { err }
+                Ok(evaled_args) => {
+                    match evaled_fn_symbol {
+                        Expression::At(Atom::Symbol(sym)) => {
+                            match vars.get(&sym) {
+                                None => { Err(EvaluationError::FunctionNotFound) }
+                                Some(rust_fn) => { rust_fn(evaled_args) }
+                            }
                         }
-                        None => {
-                            Expression::EvalError(EvaluationError::FunctionNotFound)
-                        }
+                        _ => {Err(EvaluationError::NotAFunction)}
                     }
                 }
-                _ =>  panic!("Tried to evaluate a non-symbol or function")
             }
         }
-        Expression::At(_) => { expr }
-        Expression::EvalError(_) => { expr }
     }
 }
 
-pub fn eval(expr: Expression, vars: &HashMap<String, fn(i64, i64) -> i64>) -> String {
-    let evaled_expr = eval_expr2(expr, vars);
+pub fn eval(expr: Expression, vars: &HashMap<String, fn(Vec<Expression>) -> EvalResult>) -> String {
+    let evaled_expr = eval_expr3(expr, vars);
     format!("{:?}", evaled_expr)
 }
