@@ -48,6 +48,7 @@ fn parse_char(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorK
              tag("\\"),
              take(1 as usize)))(rest)?;
 
+    // TODO: check if char string has size 2 to correctly parse \n, \t etc
     Ok((rest, Expression::At(Atom::Char(char_string[0].as_char()))))
 }
 
@@ -117,35 +118,4 @@ pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::Erro
     let expression = parse_expression_top_level(input.as_bytes());
     println!("{:?}", expression);
     expression
-}
-
-fn eval_expr(expr: Expression) -> Expression {
-    match expr {
-        Expression::Expr(op, args) => {
-            let evaled_fn_symbol = eval_expr(*op);
-            let evaled_args = args.into_iter().map(eval_expr);
-            match evaled_fn_symbol {
-                Expression::At(Atom::Symbol(sym)) => {
-                    if &sym == "+" {
-                        let int_res = evaled_args.fold(0 as i64, |acc, arg | {
-                            match arg {
-                                Expression::At(Atom::Int(x)) => {x + acc}
-                                _ => panic!("Tried to sum wrong type")
-                            }
-                        });
-                        Expression::At(Atom::Int(int_res))
-                    } else {
-                        panic!("Unimplemented built in function")
-                    }
-                }
-                _ =>  panic!("Tried to evaluate a non-symbol or function")
-            }
-        }
-        Expression::At(_) => expr
-    }
-}
-
-pub fn eval(expr: Expression) -> String {
-    let evaled_expr = eval_expr(expr);
-    format!("{:?}", evaled_expr)
 }
