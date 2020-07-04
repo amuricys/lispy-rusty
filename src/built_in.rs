@@ -80,12 +80,3 @@ pub fn sum(args: Vec<Expression>) -> EvalResult {
         })
 }
 
-pub fn quote(args: Vec<Expression>) -> EvalResult {
-    let args_amount = args.len();
-    if args_amount != 1 {
-        Err(EvaluationError::WrongArity(1, args_amount as i64))
-    } else {
-        Ok(Expression::QExpr(Box::from(args[0].clone())))
-    }
-}
-
