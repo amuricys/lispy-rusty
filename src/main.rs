@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use nom::lib::std::collections::HashMap;
 use parser::{Expression};
 use eval::{EvalResult};
+
 mod parser;
 mod eval;
 mod built_in;
@@ -38,10 +39,12 @@ fn main() {
         built_ins.insert("*".to_string(), built_in::mul);
         built_ins.insert("/".to_string(), built_in::div);
         built_ins.insert("neg".to_string(), built_in::neg);
+        built_ins.insert("quote".to_string(), built_in::quote);
 
         let immut_built_ins = built_ins.clone();
 
         /* Print user input line (just the parsed tree for now) */
+        /* TODO:  Do a more user-friendly print. Either implement the Debug trait by hand or handle it otherwise */
         match parsed_input_expression {
             Ok((_, expr)) => {
                 println!("eval: {}", eval::eval(expr, &immut_built_ins));

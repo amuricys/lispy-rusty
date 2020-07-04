@@ -5,15 +5,15 @@ use nom::{branch::alt,
           IResult, AsChar};
 use nom::character::is_alphanumeric;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Atom {
     Int(i64),
     Char(char),
     Bool(bool),
-    Symbol(String),
+    Symbol(String)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     At(Atom),
     Expr(Box<Expression>, Vec<Expression>),
