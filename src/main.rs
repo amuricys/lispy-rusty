@@ -2,9 +2,10 @@ extern crate nom;
 
 use std::io::{self, Write};
 use nom::lib::std::collections::HashMap;
-use parser::{Expression, EvalResult};
-
+use parser::{Expression};
+use eval::{EvalResult};
 mod parser;
+mod eval;
 mod built_in;
 
 fn main() {
@@ -33,10 +34,9 @@ fn main() {
         /* Construct built-in function table 
            TODO: Move construction to built_in module itself */
         let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult>::new();
-        built_ins.insert("+".to_string(), built_in::sum2);
-        built_ins.insert("-".to_string(), built_in::sub2);
-        built_ins.insert("*".to_string(), built_in::mult2);
-        built_ins.insert("/".to_string(), built_in::div2);
+        built_ins.insert("+".to_string(), built_in::sum);
+        built_ins.insert("*".to_string(), built_in::mul);
+        built_ins.insert("/".to_string(), built_in::div);
         built_ins.insert("neg".to_string(), built_in::neg);
 
         let immut_built_ins = built_ins.clone();
@@ -44,7 +44,7 @@ fn main() {
         /* Print user input line (just the parsed tree for now) */
         match parsed_input_expression {
             Ok((_, expr)) => {
-                println!("eval: {}", parser::eval(expr, &immut_built_ins));
+                println!("eval: {}", eval::eval(expr, &immut_built_ins));
             }
             Err(_) => {
                 println!("Fuck you, boah")
