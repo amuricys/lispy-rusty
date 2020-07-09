@@ -25,7 +25,7 @@ fn map_m(maybes: Vec<EvalResult>) -> Result<Vec<Expression>, EvalResult> {
     let mut to_return = Vec::new();
     for eval_res in maybes {
         match eval_res {
-            Err(_) => { return Err(eval_res); }
+            Err(_) => return Err(eval_res),
             Ok(expr) => { to_return.push(expr) }
         }
     }
@@ -55,13 +55,13 @@ fn call_function(args: Vec<Expression>) -> EvalResult {
     let evaled_args = args.into_iter().map(|x| eval_expression(x, functions_available));
     let try_correct_evaled_args = map_m(evaled_args.collect());
     match try_correct_evaled_args {
-        Err(err) => { err }
+        Err(err) => err,
         Ok(evaled_args) => {
             match checked_first_symbol {
                 Expression::At(Atom::Symbol(sym)) => {
                     match functions_available.get(&sym) {
-                        None => { Err(EvaluationError::FunctionNotFound) }
-                        Some(rust_fn) => { rust_fn(evaled_args) }
+                        None => Err(EvaluationError::FunctionNotFound),
+                        Some(rust_fn) => rust_fn(evaled_args)
                     }
                 }
                 _ => { Err(EvaluationError::NotAFunction) }
@@ -72,7 +72,7 @@ fn call_function(args: Vec<Expression>) -> EvalResult {
 
 fn call_special_form(special_form: SpecialForm) -> EvalResult {
     match special_form {
-        SpecialForm::Quote(my_boxed_expr) => { Ok(*my_boxed_expr) }
+        SpecialForm::Quote(my_boxed_expr) => Ok(*my_boxed_expr),
         _ => { panic! ("Como vc achou um special form sem que ele exista? Lixo")}
         /* TODO: Implement other special forms
         SpecialForm::If(cond_e, true_e, false_e) => { Ok(*my_boxed_expr) }
@@ -84,20 +84,16 @@ fn call_special_form(special_form: SpecialForm) -> EvalResult {
 
 fn eval_expression(expr: Expression, vars: &HashMap<String, ResolvedSymbol>) -> EvalResult {
     match expr {
-        Expression::At(_) => { Ok(expr) }
+        Expression::At(_) => Ok(expr),
         Expression::Expr(op, args) => {
             let checked_first_symbol = eval_expression(*op, vars)?;
             match checked_first_symbol {
                 Expression::At(Atom::Symbol(sym)) => {
                     let resolved_symbol = vars.get(&sym);
                     match resolved_symbol {
-                        Some(ResolvedSymbol::SpecialF(minha_pica)) => {
-                            call_special_form(minha_pica.clone())
-                        }
-                        Some(ResolvedSymbol::Value(minha_pica)) => {
-                            // Chama funcao
-                            call_function("Sei la com o que vtnc")
-                        }
+                        Some(ResolvedSymbol::SpecialF(minha_pica)) => call_special_form(minha_pica.clone()),
+                        Some(ResolvedSymbol::Value(minha_pica)) => call_function(minha_pica),
+                        _ => panic!("Tome em seu cu")
                     }
                 }
                 _ => panic!("Ô caralho, mas que porra é essa??!?!")
