@@ -1,6 +1,6 @@
 use types::{Expression, EvaluationError, EvalResult, Atom};
 
-// Built-in fns (temp)
+// Built-in fns
 pub fn neg(args: Vec<Expression>) -> EvalResult {
     let args_amount = args.len();
     if args_amount != 1 {

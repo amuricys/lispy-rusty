@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone)]
 
 /* TODO: Discover how to parametrize the our types.
@@ -24,18 +26,24 @@ pub enum Atom {
 pub enum Expression {
     At(Atom),
     Expr(Box<Expression>, Vec<Expression>), // TODO also: implement this as a linked list (which it kind of already is but very buffed)
-    Array(Vec<Expression>), // TODO: Implement Fn as a special form that validates its arguments
-    Function(Vec<Atom>, Box<Expression>)
+    Array(Vec<Expression>),
+    SpecialForm(SpecialForm),
+    /* TODO: Perhaps instead of having the two below, we could have a single "Function" enum that is either built-in
+    or is a lambda. In both cases they need to be aware of their `env`ironment, and need to evaluate the args before called. */
+    BuiltIn(fn(Vec<Expression>) -> EvalResult),
+    Lambda(Vec<Atom>, Box<Expression>)
+
 }
 
 #[derive(Debug)]
 pub enum EvaluationError {
     DivideByZero,
     SymbolNotFound,
-    NotAFunction,
+    NotSpecialFormOrFunction,
     Pending,
     WrongType(String),
     WrongArity(i64, i64), // (Expected, Received)
+    SpecialFormOutOfContext,
 }
 
 pub type EvalResult = Result<Expression, EvaluationError>;
@@ -53,9 +61,10 @@ pub enum SpecialForm {
     Def,
 }
 
-
 #[derive (Debug, Clone)]
-pub enum ResolvedSymbol {
-    Value(Expression),
-    SpecialF(SpecialForm),
+pub struct Environment {
+    pub special_forms: HashMap<String, SpecialForm>,
+    pub built_in_fns: HashMap<String, fn(Vec<Expression>) -> EvalResult>,
+    pub vars: HashMap<String, Expression>
 }
+
