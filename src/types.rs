@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+use std::collections::HashMap;
 
 /* TODO: Discover how to parametrize the our types.
    For example: an Expression::Function(vec, _) doesn't contain, in vec, just any atom.
@@ -12,6 +12,7 @@
    Expression::At(Atom::Int(val))
 
    How do we get this guarantee on the type level? */
+#[derive(Debug, Clone)]
 pub enum Atom {
     Int(i64),
     Char(char),
@@ -21,41 +22,48 @@ pub enum Atom {
 }
 
 #[derive(Debug, Clone)]
+pub enum FunctionType {
+    Lambda(Vec<Atom>, Box<Expression>),
+    BuiltIn(fn(Vec<Expression>) -> EvalResult<Expression>)
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     At(Atom),
-    Expr(Box<Expression>, Vec<Expression>), // TODO also: implement this as a linked list (which it kind of already is but very buffed)
-    Array(Vec<Expression>), // TODO: Implement Fn as a special form that validates its arguments
-    Function(Vec<Atom>, Box<Expression>)
+    List(Box<Expression>, Vec<Expression>), // TODO: implement this as a linked list (which it kind of already is but very buffed)
+    Array(Vec<Expression>),
+    SpecialForm(SpecialForm),
+    Function(FunctionType)
 }
 
 #[derive(Debug)]
 pub enum EvaluationError {
     DivideByZero,
-    SymbolNotFound,
-    NotAFunction,
+    SymbolNotFound(String),
+    NotSpecialFormOrFunction,
     Pending,
     WrongType(String),
     WrongArity(i64, i64), // (Expected, Received)
+    SpecialFormOutOfContext,
+    UnknownBinding(String)
 }
 
-pub type EvalResult = Result<Expression, EvaluationError>;
+pub type EvalResult<O> = Result<O, EvaluationError>;
 /* ------------------------------------------------------------------------ */
 
 #[derive (Debug, Clone)]
 pub enum SpecialForm {
-    /*  (QExpression) */
     Quote,
-    /*  (Cond, If Branch, Else Branch) */
     If,
-    /*  (ArgList, Body) */
     Fn,
-    /*  (Name, Value) */
     Def,
 }
 
-
 #[derive (Debug, Clone)]
-pub enum ResolvedSymbol {
-    Value(Expression),
-    SpecialF(SpecialForm),
+// TODO: Implement as linked list also, so that incremental additions to environments are possible
+pub struct Environment {
+    pub special_forms: HashMap<String, SpecialForm>,
+    pub built_in_fns: HashMap<String, fn(Vec<Expression>) -> EvalResult<Expression>>,
+    pub vars: HashMap<String, Expression>
 }
+
