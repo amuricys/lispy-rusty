@@ -1,3 +1,5 @@
+// TODO zão: still need to improve parser by using `delim` and other pure nom constructs.
+
 use nom::{branch::alt,
           bytes::complete::{take_while, take_while1, tag, take},
           character::{is_space, is_digit},
@@ -56,13 +58,13 @@ fn parse_bool(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorK
     Ok((rest, Expression::At(Atom::Bool(from_u8_array_to_bool(boolean)))))
 }
 
+/* TODO: This doesn't work! Has to take into account spaces or ')' after the literal*/
 fn parse_nil(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _spaces) = take_while(is_space_lisp)(i)?;
     let (rest, _nil) = tag("nil")(rest)?;
 
     Ok((rest, Expression::At(Atom::Nil)))
 }
-/* ------------------------------------------------------------- */
 
 fn parse_atom(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     alt((parse_num, parse_char, parse_bool, parse_nil, parse_symbol))(i)
@@ -118,7 +120,7 @@ fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::
     let (new_rest, _end_spaces) = take_while(is_space_lisp)(new_rest)?;
     let (newest_rest, _paren2) = char(')')(new_rest)?;
 
-    Ok((newest_rest, Expression::Expr(Box::new(op_expression), args)))
+    Ok((newest_rest, Expression::List(Box::new(op_expression), args)))
 }
 
 

@@ -1,7 +1,7 @@
 use types::{Expression, EvaluationError, EvalResult, Atom};
 
-// Built-in fns
-pub fn neg(args: Vec<Expression>) -> EvalResult {
+// TODO: Built-in fns estão pedreiras
+pub fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
     let args_amount = args.len();
     if args_amount != 1 {
         Err(EvaluationError::WrongArity(1, args_amount as i64))
@@ -18,7 +18,7 @@ pub fn neg(args: Vec<Expression>) -> EvalResult {
     }
 }
 
-pub fn mul(args: Vec<Expression>) -> EvalResult {
+pub fn mul(args: Vec<Expression>) -> EvalResult<Expression> {
     let mut mtt = 1;
     for arg in args {
         if let Expression::At(atom) = arg {
@@ -36,7 +36,7 @@ pub fn mul(args: Vec<Expression>) -> EvalResult {
     Ok(Expression::At(Atom::Int(mtt)))
 }
 
-pub fn div(args: Vec<Expression>) -> EvalResult {
+pub fn div(args: Vec<Expression>) -> EvalResult<Expression> {
     let mut first_value = true;
     let mut dvv = 0;
     for arg in args {
@@ -63,7 +63,7 @@ pub fn div(args: Vec<Expression>) -> EvalResult {
     Ok(Expression::At(Atom::Int(dvv)))
 }
 
-pub fn sum(args: Vec<Expression>) -> EvalResult {
+pub fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
     args.into_iter()
         .fold(Ok(Expression::At(Atom::Int(0))), |acc, arg| match acc {
             Err(err) => Err(err),

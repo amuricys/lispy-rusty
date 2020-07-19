@@ -23,20 +23,21 @@ fn main() {
         let mut x = String::new();
 
         /* Read user input line */
+        /* TODO: voltar o cursor no REPL. Ngm merece ^[[D */
         io::stdin().read_line(&mut x).expect("Failed to read line");
 
         /* Record input */
         input_history.push(x.clone());
 
-        /*  TOUNDERSTAND: Why does "let parsed_input_expression = parser::parse(&x.to_owned());" not work?
-            Parse input into expression tree */
+        /*  TODO; UNDERSTAND: Why does "let parsed_input_expression = parser::parse(&x.to_owned());" not work? */
+        /*  Parse input into expression tree */
         let to_parse = x.to_owned();
         let parsed_input_expression = parser::parse(&to_parse);
 
         /* Construct built-in function table 
            TODO: Move construction to built_in module itself */
         let mut special_forms = HashMap::<String, SpecialForm>::new();
-        let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult>::new();
+        let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult<Expression>>::new();
         let mut vars = HashMap::<String, Expression>::new();
         built_ins.insert("+".to_string(), built_in::sum);
         built_ins.insert("*".to_string(), built_in::mul);
@@ -46,8 +47,6 @@ fn main() {
         special_forms.insert("if".to_string(), SpecialForm::If);
         special_forms.insert("fn".to_string(), SpecialForm::Fn);
         vars.insert("variavel-qualquer".to_string(), Expression::At(Atom::Int(11)));
-
-        let immut_built_ins = special_forms.clone();
 
         let env = Environment {
             special_forms: special_forms,
@@ -61,8 +60,8 @@ fn main() {
             Ok((_, expr)) => {
                 println!("eval: {}", eval::eval(expr, &env));
             }
-            Err(_) => {
-                println!("Fuck you, boah")
+            Err(parser_error) => {
+                println!("Fuck you, boah: {:?}", parser_error)
             }
         }
     }
