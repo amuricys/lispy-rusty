@@ -1,6 +1,5 @@
 use types::{Expression, EvaluationError, EvalResult, SpecialForm, Atom, Environment, FunctionType, SinglyLinkedList};
 use nom::lib::std::collections::{HashMap};
-use std::env::vars;
 
 fn quote_expr(to_quote: Vec<Expression>) -> EvalResult<Expression> {
     if to_quote.len() == 1 {
@@ -95,7 +94,7 @@ fn tuple_even_vector(to_tuple: &Vec<Expression>) -> EvalResult<Vec<(Expression, 
         }
     }
     match intermediate_tuple {
-        Option::Some(let1) => Err(EvaluationError::MustHaveEvenNumberOfForms("let binding".parse().unwrap())),
+        Option::Some(_) => Err(EvaluationError::MustHaveEvenNumberOfForms("let binding".parse().unwrap())),
         Option::None => { Ok(ret) }
     }
 }
@@ -119,7 +118,7 @@ fn let_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLin
         match args[0].clone() {
             Expression::Array(vec) => {
                 let vector_of_tuples = tuple_even_vector(&vec)?;
-                let mut map_of_bound_names = vector_of_tuples_to_hash_map(&vector_of_tuples, env, local_vars)?;
+                let map_of_bound_names = vector_of_tuples_to_hash_map(&vector_of_tuples, env, local_vars)?;
                 let local_env_overwrites = SinglyLinkedList::Cons(map_of_bound_names, local_vars);
                 eval_expression(args[1].clone(), env, &local_env_overwrites)
             }
@@ -128,26 +127,6 @@ fn let_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLin
     } else {
         Err(EvaluationError::WrongArity(2, args.len() as i64))
     }
-}
-
-// TODO 2: Horrível. Fuck for loops
-fn substitute(params_fn_takes: Vec<Atom>, args_fn_is_receiving: Vec<Expression>, env: &Environment) -> EvalResult<Environment> {
-    let mut new_environment = env.clone(); // TODO: Don't clone whole environment for each function call
-    // let two_together = params_fn_takes.into_iter().zip(args_fn_is_receiving);
-    // TODO: disgusting side-effectful map, should be a mapM_
-    // let res = two_together.map(|(param,arg)| {
-    //     match param {
-    //         Atom::Symbol(sym) => Ok(new_environment.vars.insert(sym, arg)),
-    //         _ => Err(EvaluationError::UnknownBinding("can only bind to symbols".parse().unwrap()))
-    //     }
-    // });
-    // for (param, arg) in two_together {
-    //     match param {
-    //         Atom::Symbol(sym) => new_environment.vars.insert(sym, arg),
-    //         _ => return Err(EvaluationError::UnknownBinding("can only bind to symbols".parse().unwrap()))
-    //     };
-    // }
-    Ok(new_environment)
 }
 
 // TODO 3: Usar um map_m sério
@@ -159,7 +138,7 @@ fn call_function(called_fn: FunctionType, args_fn_is_receiving: Vec<Expression>,
             match called_fn {
                 FunctionType::Lambda(params_fn_takes, body) => {
                     let two_together = params_fn_takes.into_iter().zip(correctly_evaled_args).collect();
-                    let mut map_of_bound_names = vector_of_tuples_to_hash_map(&two_together, env, local_vars)?;
+                    let map_of_bound_names = vector_of_tuples_to_hash_map(&two_together, env, local_vars)?;
                     let local_env_overwrites = SinglyLinkedList::Cons(map_of_bound_names, local_vars);
                     eval_expression(*body, env, &local_env_overwrites)
                 },
@@ -226,7 +205,7 @@ fn eval_expression(expr: Expression, env: &mut Environment, local_vars: &SinglyL
     }
 }
 
-pub fn eval(expr: Expression, env: &mut Environment) -> String {
-    let evaled_expr = eval_expression(expr, env, &SinglyLinkedList::Nil);
+pub fn eval(expr: Expression, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> String {
+    let evaled_expr = eval_expression(expr, env, local_vars);
     format!("{:?}", evaled_expr)
 }

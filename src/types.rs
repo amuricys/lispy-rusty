@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use nom::lib::std::collections::LinkedList;
 
 /* TODO: Discover how to parametrize the our types.
    For example: an Expression::Function(vec, _) doesn't contain, in vec, just any atom.

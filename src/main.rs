@@ -17,7 +17,7 @@ fn main() {
 
     /* Construct built-in function table
            TODO: Move construction to built_in module itself */
-    let mut env = built_in::initial_env();
+    let (mut env, local_env) = built_in::initial_env();
 
     loop {
         print!("lispy_rusty>");
@@ -41,7 +41,7 @@ fn main() {
         /* TODO:  Do a more user-friendly print. Either implement the Debug trait by hand or handle it otherwise */
         match parsed_input_expression {
             Ok((_, expr)) => {
-                println!("eval: {}", eval::eval(expr, &mut env));
+                println!("eval: {}", eval::eval(expr, &mut env, &local_env));
             }
             Err(parser_error) => {
                 println!("Fuck you, boah: {:?}", parser_error)

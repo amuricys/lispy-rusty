@@ -81,7 +81,7 @@ fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
         })
 }
 
-pub fn initial_env() -> Environment {
+pub fn initial_env() -> (Environment, SinglyLinkedList<'static, HashMap<String, Expression>>) {
     let mut special_forms = HashMap::<String, SpecialForm>::new();
     let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult<Expression>>::new();
     let vars = HashMap::<String, Expression>::new();
@@ -95,10 +95,12 @@ pub fn initial_env() -> Environment {
     special_forms.insert("if".to_string(), SpecialForm::If);
     special_forms.insert("fn".to_string(), SpecialForm::Fn);
     special_forms.insert("def".to_string(), SpecialForm::Def);
+    special_forms.insert("let".to_string(), SpecialForm::Let);
 
-    Environment {
-        special_forms: special_forms,
-        built_in_fns: built_ins,
-        top_level_vars: vars,
-    }
+    (Environment {
+         special_forms: special_forms,
+         built_in_fns: built_ins,
+         top_level_vars: vars,
+     },
+     SinglyLinkedList::Nil)
 }
