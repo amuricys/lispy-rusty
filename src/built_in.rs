@@ -1,7 +1,8 @@
-use types::{Expression, EvaluationError, EvalResult, Atom};
+use types::{Expression, EvaluationError, EvalResult, Atom, Environment, SpecialForm, SinglyLinkedList};
+use std::collections::HashMap;
 
 // TODO: Built-in fns estão pedreiras
-pub fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
+fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
     let args_amount = args.len();
     if args_amount != 1 {
         Err(EvaluationError::WrongArity(1, args_amount as i64))
@@ -18,7 +19,7 @@ pub fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
     }
 }
 
-pub fn mul(args: Vec<Expression>) -> EvalResult<Expression> {
+fn mul(args: Vec<Expression>) -> EvalResult<Expression> {
     let mut mtt = 1;
     for arg in args {
         if let Expression::At(atom) = arg {
@@ -36,7 +37,7 @@ pub fn mul(args: Vec<Expression>) -> EvalResult<Expression> {
     Ok(Expression::At(Atom::Int(mtt)))
 }
 
-pub fn div(args: Vec<Expression>) -> EvalResult<Expression> {
+fn div(args: Vec<Expression>) -> EvalResult<Expression> {
     let mut first_value = true;
     let mut dvv = 0;
     for arg in args {
@@ -63,7 +64,7 @@ pub fn div(args: Vec<Expression>) -> EvalResult<Expression> {
     Ok(Expression::At(Atom::Int(dvv)))
 }
 
-pub fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
+fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
     args.into_iter()
         .fold(Ok(Expression::At(Atom::Int(0))), |acc, arg| match acc {
             Err(err) => Err(err),
@@ -80,3 +81,26 @@ pub fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
         })
 }
 
+pub fn initial_env() -> (Environment, SinglyLinkedList<'static, HashMap<String, Expression>>) {
+    let mut special_forms = HashMap::<String, SpecialForm>::new();
+    let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult<Expression>>::new();
+    let vars = HashMap::<String, Expression>::new();
+
+    built_ins.insert("+".to_string(), sum);
+    built_ins.insert("*".to_string(), mul);
+    built_ins.insert("/".to_string(), div);
+    built_ins.insert("neg".to_string(), neg);
+
+    special_forms.insert("quote".to_string(), SpecialForm::Quote);
+    special_forms.insert("if".to_string(), SpecialForm::If);
+    special_forms.insert("fn".to_string(), SpecialForm::Fn);
+    special_forms.insert("def".to_string(), SpecialForm::Def);
+    special_forms.insert("let".to_string(), SpecialForm::Let);
+
+    (Environment {
+         special_forms: special_forms,
+         built_in_fns: built_ins,
+         top_level_vars: vars,
+     },
+     SinglyLinkedList::Nil)
+}

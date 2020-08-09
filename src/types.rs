@@ -23,7 +23,7 @@ pub enum Atom {
 
 #[derive(Debug, Clone)]
 pub enum FunctionType {
-    Lambda(Vec<Atom>, Box<Expression>),
+    Lambda(Vec<Expression>, Box<Expression>),
     BuiltIn(fn(Vec<Expression>) -> EvalResult<Expression>)
 }
 
@@ -45,7 +45,9 @@ pub enum EvaluationError {
     WrongType(String),
     WrongArity(i64, i64), // (Expected, Received)
     SpecialFormOutOfContext,
-    UnknownBinding(String)
+    UnknownBinding(String),
+    ForbiddenDef(String),
+    MustHaveEvenNumberOfForms(String)
 }
 
 pub type EvalResult<O> = Result<O, EvaluationError>;
@@ -57,6 +59,13 @@ pub enum SpecialForm {
     If,
     Fn,
     Def,
+    Let,
+}
+
+#[derive (Debug, Eq, PartialEq)]
+pub enum SinglyLinkedList<'a, T> {
+    Cons(T, &'a SinglyLinkedList<'a, T>),
+    Nil
 }
 
 #[derive (Debug, Clone)]
@@ -64,6 +73,6 @@ pub enum SpecialForm {
 pub struct Environment {
     pub special_forms: HashMap<String, SpecialForm>,
     pub built_in_fns: HashMap<String, fn(Vec<Expression>) -> EvalResult<Expression>>,
-    pub vars: HashMap<String, Expression>
+    pub top_level_vars: HashMap<String, Expression>
 }
 

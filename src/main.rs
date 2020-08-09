@@ -3,8 +3,6 @@ mod built_in;
 extern crate nom;
 
 use std::io::{self, Write};
-use std::collections::HashMap;
-use types::{SpecialForm, Expression, Atom, EvalResult, Environment};
 
 mod parser;
 mod eval;
@@ -16,6 +14,11 @@ fn main() {
     println!("Press Ctrl+c to Exit\n");
 
     let mut input_history = Vec::new();
+
+    /* Construct built-in function table
+           TODO: Move construction to built_in module itself */
+    let (mut env, local_env) = built_in::initial_env();
+
     loop {
         print!("lispy_rusty>");
         io::stdout().flush().unwrap(); // Flush to write prompt before getting input
@@ -34,31 +37,11 @@ fn main() {
         let to_parse = x.to_owned();
         let parsed_input_expression = parser::parse(&to_parse);
 
-        /* Construct built-in function table 
-           TODO: Move construction to built_in module itself */
-        let mut special_forms = HashMap::<String, SpecialForm>::new();
-        let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult<Expression>>::new();
-        let mut vars = HashMap::<String, Expression>::new();
-        built_ins.insert("+".to_string(), built_in::sum);
-        built_ins.insert("*".to_string(), built_in::mul);
-        built_ins.insert("/".to_string(), built_in::div);
-        built_ins.insert("neg".to_string(), built_in::neg);
-        special_forms.insert("quote".to_string(), SpecialForm::Quote);
-        special_forms.insert("if".to_string(), SpecialForm::If);
-        special_forms.insert("fn".to_string(), SpecialForm::Fn);
-        vars.insert("variavel-qualquer".to_string(), Expression::At(Atom::Int(11)));
-
-        let env = Environment {
-            special_forms: special_forms,
-            built_in_fns: built_ins,
-            vars: vars
-        };
-
         /* Print user input line (just the parsed tree for now) */
         /* TODO:  Do a more user-friendly print. Either implement the Debug trait by hand or handle it otherwise */
         match parsed_input_expression {
             Ok((_, expr)) => {
-                println!("eval: {}", eval::eval(expr, &env));
+                println!("eval: {}", eval::eval(expr, &mut env, &local_env));
             }
             Err(parser_error) => {
                 println!("Fuck you, boah: {:?}", parser_error)
