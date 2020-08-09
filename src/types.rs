@@ -12,30 +12,33 @@ use std::collections::HashMap;
    Expression::At(Atom::Int(val))
 
    How do we get this guarantee on the type level? */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Atom {
     Int(i64),
     Char(char),
     Bool(bool),
     Nil,
     Symbol(String),
+    String(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FunctionType {
     Lambda(Vec<Expression>, Box<Expression>),
     BuiltIn(fn(Vec<Expression>) -> EvalResult<Expression>)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
     At(Atom),
     List(Box<Expression>, Vec<Expression>), // TODO: implement this as a linked list (which it kind of already is but very buffed)
     Array(Vec<Expression>),
+    Map(Vec<(Expression, Expression)>),
     SpecialForm(SpecialForm),
     Function(FunctionType)
 }
 
+// TODO: Make all evaluation errors return strings
 #[derive(Debug)]
 pub enum EvaluationError {
     DivideByZero,
@@ -53,7 +56,7 @@ pub enum EvaluationError {
 pub type EvalResult<O> = Result<O, EvaluationError>;
 /* ------------------------------------------------------------------------ */
 
-#[derive (Debug, Clone)]
+#[derive (Debug, Clone, Eq, PartialEq)]
 pub enum SpecialForm {
     Quote,
     If,
@@ -69,7 +72,6 @@ pub enum SinglyLinkedList<'a, T> {
 }
 
 #[derive (Debug, Clone)]
-// TODO: Implement as linked list also, so that incremental additions to environments are possible
 pub struct Environment {
     pub special_forms: HashMap<String, SpecialForm>,
     pub built_in_fns: HashMap<String, fn(Vec<Expression>) -> EvalResult<Expression>>,

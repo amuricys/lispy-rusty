@@ -7,6 +7,8 @@ use nom::{branch::alt,
           IResult, AsChar};
 use nom::character::is_alphanumeric;
 use types::{Expression, Atom};
+use nom::lib::std::collections::HashMap;
+use util;
 
 fn is_space_lisp(c: u8) -> bool {
     is_space(c) || c.as_char() == ','
@@ -17,7 +19,7 @@ fn is_valid_symbol_char(c: u8) -> bool {
 }
 
 fn parse_expression_top_level(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_atom, parse_expression, parse_array))(i)
+    alt((parse_atom, parse_list, parse_array, parse_map))(i)
 }
 
 fn parse_num(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
@@ -51,6 +53,18 @@ fn parse_symbol(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::Erro
 }
 
 /* TODO: This doesn't work! Has to take into account spaces or ')' after the literal*/
+fn parse_string(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+    let (rest, _spaces) = take_while(is_space_lisp)(i)?;
+    let (rest, _open_quotes) = char('\"')(rest)?;
+    let (rest, content) = take_while(|c: u8| {c.as_char() != '\"'})(rest)?;
+    let (rest, _close_quotes) = char('\"')(rest)?; // because take_while doesn't consume the char that fails its condition
+
+    let wat = String::from_utf8(Vec::from(content)).expect("Me dê uma porra de uma string");
+
+    Ok((rest, Expression::At(Atom::String(wat))))
+}
+
+/* TODO: This doesn't work! Has to take into account spaces or ')' after the literal*/
 fn parse_bool(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _spaces) = take_while(is_space_lisp)(i)?;
     let (rest, boolean) = alt((tag("true"), tag("false")))(rest)?;
@@ -67,7 +81,7 @@ fn parse_nil(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKi
 }
 
 fn parse_atom(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
-    alt((parse_num, parse_char, parse_bool, parse_nil, parse_symbol))(i)
+    alt((parse_num, parse_char, parse_bool, parse_nil, parse_symbol, parse_string))(i)
 }
 
 fn parse_array(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
@@ -96,7 +110,40 @@ fn parse_array(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::Error
     Ok((newest_rest, Expression::Array(array)))
 }
 
-fn parse_expression(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+fn parse_map(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
+    let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
+    let (rest, _bracket1) = char('{')(rest)?;
+
+    let mut array = Vec::new();
+
+    let mut new_rest = rest;
+    let mut should_continue = true;
+    while should_continue {
+        let could_parse = parse_expression_top_level(new_rest);
+        match could_parse {
+            Ok((other_new_rest, expr)) => {
+                array.push(expr);
+                new_rest = other_new_rest;
+            }
+            Err(_) => {
+                should_continue = false;
+            }
+        }
+    }
+    let (new_rest, _end_spaces) = take_while(is_space_lisp)(new_rest)?;
+    let (newest_rest, _paren2) = char('}')(new_rest)?;
+
+    let tuples = util::tuple_even_vector(array);
+    match tuples {
+        Ok(tuples) => {
+            Ok((newest_rest, Expression::Map(tuples)))
+        }
+        // TODO: Remove this panic
+        Err(_) => { panic!("Larga de ser burro")}
+    }
+}
+
+fn parse_list(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
     let (rest, _paren1) = char('(')(rest)?;
     let (rest, op_expression) = parse_expression_top_level(rest)?;

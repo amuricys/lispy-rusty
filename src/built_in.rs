@@ -19,6 +19,29 @@ fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
     }
 }
 
+fn eq(args: Vec<Expression>) -> EvalResult<Expression> {
+    let args_amount = args.len();
+    if args_amount != 2 {
+        Err(EvaluationError::WrongArity(2, args_amount as i64))
+    } else {
+        Ok(Expression::At(Atom::Bool(args[0] == args[1])))
+    }
+}
+
+fn compare(args: Vec<Expression>) -> EvalResult<Expression> {
+    let args_amount = args.len();
+    if args_amount != 2 {
+        Err(EvaluationError::WrongArity(2, args_amount as i64))
+    } else {
+        match (&args[0], &args[1]) {
+            (Expression::At(Atom::Int(x)), Expression::At(Atom::Int(y))) => {
+                Ok(Expression::At(Atom::Bool(x < y)))
+            },
+            _ => Err(EvaluationError::WrongType("Can only compare two integers".parse().unwrap()))
+        }
+    }
+}
+
 fn mul(args: Vec<Expression>) -> EvalResult<Expression> {
     let mut mtt = 1;
     for arg in args {
@@ -90,6 +113,8 @@ pub fn initial_env() -> (Environment, SinglyLinkedList<'static, HashMap<String, 
     built_ins.insert("*".to_string(), mul);
     built_ins.insert("/".to_string(), div);
     built_ins.insert("neg".to_string(), neg);
+    built_ins.insert("eq".to_string(), eq);
+    built_ins.insert("<".to_string(), compare);
 
     special_forms.insert("quote".to_string(), SpecialForm::Quote);
     special_forms.insert("if".to_string(), SpecialForm::If);

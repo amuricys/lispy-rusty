@@ -1,5 +1,3 @@
-mod built_in;
-
 extern crate nom;
 
 use std::io::{self, Write};
@@ -7,6 +5,8 @@ use std::io::{self, Write};
 mod parser;
 mod eval;
 mod types;
+mod util;
+mod built_in;
 
 fn main() {
     /* Initial prompt and shit */
