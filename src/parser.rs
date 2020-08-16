@@ -6,12 +6,12 @@ use nom::{branch::alt,
           character::complete::{char},
           IResult, AsChar};
 use nom::character::is_alphanumeric;
-use types::{Expression, Atom};
-use nom::lib::std::collections::HashMap;
+use types::{Expression, Atom, MapType};
 use util;
+use nom::lib::std::collections::VecDeque;
 
 fn is_space_lisp(c: u8) -> bool {
-    is_space(c) || c.as_char() == ','
+    is_space(c) || c.as_char() == ','|| c.as_char() == '\n'
 }
 
 fn is_valid_symbol_char(c: u8) -> bool {
@@ -136,7 +136,7 @@ fn parse_map(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKi
     let tuples = util::tuple_even_vector(array);
     match tuples {
         Ok(tuples) => {
-            Ok((newest_rest, Expression::Map(tuples)))
+            Ok((newest_rest, Expression::Map(MapType::PreEvaluation(tuples))))
         }
         // TODO: Remove this panic
         Err(_) => { panic!("Larga de ser burro")}
@@ -146,9 +146,8 @@ fn parse_map(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKi
 fn parse_list(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {
     let (rest, _first_spaces) = take_while(is_space_lisp)(i)?;
     let (rest, _paren1) = char('(')(rest)?;
-    let (rest, op_expression) = parse_expression_top_level(rest)?;
 
-    let mut args = Vec::new();
+    let mut expressions = VecDeque::new();
 
     let mut new_rest = rest;
     let mut should_continue = true;
@@ -156,7 +155,7 @@ fn parse_list(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorK
         let could_parse = parse_expression_top_level(new_rest);
         match could_parse {
             Ok((other_new_rest, expr)) => {
-                args.push(expr);
+                expressions.push_back(expr);
                 new_rest = other_new_rest;
             }
             Err(_) => {
@@ -167,7 +166,7 @@ fn parse_list(i: &[u8]) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorK
     let (new_rest, _end_spaces) = take_while(is_space_lisp)(new_rest)?;
     let (newest_rest, _paren2) = char(')')(new_rest)?;
 
-    Ok((newest_rest, Expression::List(Box::new(op_expression), args)))
+    Ok((newest_rest, Expression::List(expressions)))
 }
 
 
@@ -183,6 +182,28 @@ fn from_u8_array_to_bool(input: &[u8]) -> bool {
         .expect("Error byte array -> string")
         .parse()
         .expect("Error string -> bool")
+}
+
+pub fn parse_namespace(contents: &[u8]) -> IResult<&[u8], Vec<Expression>, (&[u8], nom::error::ErrorKind)> {
+    let (rest, _first_spaces) = take_while(is_space_lisp)(contents)?;
+
+    let mut expressions = Vec::new();
+
+    let mut new_rest = rest;
+    let mut should_continue = true;
+    while should_continue {
+        let could_parse = parse_expression_top_level(new_rest);
+        match could_parse {
+            Ok((other_new_rest, expr)) => {
+                expressions.push(expr);
+                new_rest = other_new_rest;
+            }
+            Err(_) => {
+                should_continue = false;
+            }
+        }
+    }
+    Ok((new_rest, expressions))
 }
 
 pub fn parse(input: &str) -> IResult<&[u8], Expression, (&[u8], nom::error::ErrorKind)> {

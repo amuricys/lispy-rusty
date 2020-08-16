@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{VecDeque, HashMap};
 
 /* TODO: Discover how to parametrize the our types.
    For example: an Expression::Function(vec, _) doesn't contain, in vec, just any atom.
@@ -12,7 +12,7 @@ use std::collections::HashMap;
    Expression::At(Atom::Int(val))
 
    How do we get this guarantee on the type level? */
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Atom {
     Int(i64),
     Char(char),
@@ -29,11 +29,17 @@ pub enum FunctionType {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub enum MapType {
+    PreEvaluation(Vec<(Expression, Expression)>),
+    PostEvaluation(HashMap<Atom, Expression>)
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expression {
     At(Atom),
-    List(Box<Expression>, Vec<Expression>), // TODO: implement this as a linked list (which it kind of already is but very buffed)
+    List(VecDeque<Expression>),
     Array(Vec<Expression>),
-    Map(Vec<(Expression, Expression)>),
+    Map(MapType),
     SpecialForm(SpecialForm),
     Function(FunctionType)
 }
