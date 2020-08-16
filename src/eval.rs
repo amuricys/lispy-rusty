@@ -1,16 +1,18 @@
-use types::{Expression, EvaluationError, EvalResult, SpecialForm, Atom, Environment, FunctionType, SinglyLinkedList};
-use nom::lib::std::collections::{HashMap};
+use types::{Expression, EvaluationError, EvalResult, SpecialForm, Atom, Environment, FunctionType, SinglyLinkedList, MapType};
+use nom::lib::std::collections::{HashMap, VecDeque};
+use util;
 
-fn quote_expr(to_quote: Vec<Expression>) -> EvalResult<Expression> {
+pub type LocalVars<'a> = SinglyLinkedList<'a, HashMap<String, Expression>>;
+
+fn quote_expr(to_quote: VecDeque<Expression>) -> EvalResult<Expression> {
     if to_quote.len() == 1 {
         Ok(to_quote[0].clone())
     } else {
         Err(EvaluationError::WrongArity(1, to_quote.len() as i64))
     }
-
 }
 
-fn if_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
+fn if_expr(args: VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
     let is_truthy: fn(Expression) -> bool = |expr|
         match expr {
             Expression::At(Atom::Bool(false)) => false,
@@ -32,20 +34,8 @@ fn if_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLink
     }
 }
 
-// TODO 4: Map_m específico nojento
-fn map_m(maybes: Vec<EvalResult<Expression>>) -> Result<Vec<Expression>, EvalResult<Expression>> {
-    let mut to_return = Vec::new();
-    for eval_res in maybes {
-        match eval_res {
-            Err(_) => return Err(eval_res),
-            Ok(expr) => to_return.push(expr)
-        }
-    }
-    Ok(to_return)
-}
-
 // TODO: Horrível
-fn lambda (args: Vec<Expression>) -> EvalResult<Expression> {
+fn lambda (args: VecDeque<Expression>) -> EvalResult<Expression> {
     if args.len() == 2 {
         match args[0].clone() {
             Expression::Array(arr) => {
@@ -63,7 +53,7 @@ fn lambda (args: Vec<Expression>) -> EvalResult<Expression> {
     }
 }
 
-fn def(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
+fn def(args: VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
     if args.len() == 2 {
         match args[0].clone() {
             Expression::At(Atom::Symbol(sym)) => {
@@ -84,22 +74,7 @@ fn def(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedLi
     }
 }
 
-fn tuple_even_vector(to_tuple: &Vec<Expression>) -> EvalResult<Vec<(Expression, Expression)>> {
-    let mut ret = Vec::new();
-    let mut intermediate_tuple: Option<Expression> = Option::None;
-    for half_binding in to_tuple {
-        match intermediate_tuple {
-            Option::Some(let1) => { ret.push((let1.clone(), half_binding.clone())); intermediate_tuple = Option::None }
-            Option::None => { intermediate_tuple = Option::Some(half_binding.clone()) }
-        }
-    }
-    match intermediate_tuple {
-        Option::Some(_) => Err(EvaluationError::MustHaveEvenNumberOfForms("let binding".parse().unwrap())),
-        Option::None => { Ok(ret) }
-    }
-}
-
-fn vector_of_tuples_to_hash_map(tuples: &Vec<(Expression, Expression)>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<HashMap<String, Expression>> {
+fn vector_of_tuples_to_hash_map_symbol(tuples: &Vec<(Expression, Expression)>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<HashMap<String, Expression>> {
     let mut map_of_bound_names = HashMap::new();
     for (name, value) in tuples {
         match name {
@@ -113,12 +88,27 @@ fn vector_of_tuples_to_hash_map(tuples: &Vec<(Expression, Expression)>, env: &mu
     Ok(map_of_bound_names)
 }
 
-fn let_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
+fn vector_of_tuples_to_hash_map_atom(tuples: &Vec<(Expression, Expression)>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<HashMap<Atom, Expression>> {
+    let mut map_of_bound_names = HashMap::new();
+    for (name, value) in tuples {
+        match name {
+            Expression::At(atom) => {
+                let value_to_bind = eval_expression(value.clone(), env, local_vars)?;
+                map_of_bound_names.insert(atom.clone(), value_to_bind);
+            }
+            _ => { return Err(EvaluationError::UnknownBinding("Illegal binding; only symbols".parse().unwrap())) }
+        }
+    }
+    Ok(map_of_bound_names)
+}
+
+fn let_expr(args: VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
     if args.len() == 2 {
         match args[0].clone() {
             Expression::Array(vec) => {
-                let vector_of_tuples = tuple_even_vector(&vec)?;
-                let map_of_bound_names = vector_of_tuples_to_hash_map(&vector_of_tuples, env, local_vars)?;
+                let vector_of_tuples = util::tuple_even_vector(vec)?;
+                /* TODO: This binds the let binding as a chunk! Meaning (let [x 10 y (+ 20)]) doesnt work as x is not visible to the second binding*/
+                let map_of_bound_names = vector_of_tuples_to_hash_map_symbol(&vector_of_tuples, env, local_vars)?;
                 let local_env_overwrites = SinglyLinkedList::Cons(map_of_bound_names, local_vars);
                 eval_expression(args[1].clone(), env, &local_env_overwrites)
             }
@@ -129,28 +119,27 @@ fn let_expr(args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLin
     }
 }
 
-// TODO 3: Usar um map_m sério
-fn call_function(called_fn: FunctionType, args_fn_is_receiving: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
-    let evaled_args = map_m(args_fn_is_receiving.into_iter().map(|x| eval_expression(x, env, local_vars)).collect());
+fn call_function(called_fn: FunctionType, args_fn_is_receiving: VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
+    let evaled_args = util::map_m(args_fn_is_receiving.into_iter().map(|x| eval_expression(x, env, local_vars)).collect());
 
     match evaled_args {
         Ok(correctly_evaled_args) => {
             match called_fn {
+                FunctionType::BuiltIn(built_in) => built_in(correctly_evaled_args),
                 FunctionType::Lambda(params_fn_takes, body) => {
                     let two_together = params_fn_takes.into_iter().zip(correctly_evaled_args).collect();
-                    let map_of_bound_names = vector_of_tuples_to_hash_map(&two_together, env, local_vars)?;
+                    let map_of_bound_names = vector_of_tuples_to_hash_map_symbol(&two_together, env, local_vars)?;
                     let local_env_overwrites = SinglyLinkedList::Cons(map_of_bound_names, local_vars);
                     eval_expression(*body, env, &local_env_overwrites)
                 },
-                FunctionType::BuiltIn(built_in) => built_in(correctly_evaled_args),
             }
         }
-        Err(err) => err
+        Err(err) => Err(err)
     }
 }
 
 
-fn call_special_form(special_form: SpecialForm, args: Vec<Expression>, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
+fn call_special_form(special_form: SpecialForm, args: VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
     match special_form {
         SpecialForm::Quote => quote_expr(args),
         SpecialForm::If => if_expr(args, env, local_vars),
@@ -160,7 +149,7 @@ fn call_special_form(special_form: SpecialForm, args: Vec<Expression>, env: &mut
     }
 }
 
-fn lookup_vars<'a>(sym: &String, vars_layers: &'a SinglyLinkedList<HashMap<String, Expression>>) -> Option<&'a Expression> {
+fn lookup_vars<'a>(sym: &String, vars_layers: &'a LocalVars) -> Option<&'a Expression> {
     match vars_layers {
         SinglyLinkedList::Cons(vars, tail) => {
             if let Option::Some(val) = vars.get(sym) {
@@ -173,7 +162,7 @@ fn lookup_vars<'a>(sym: &String, vars_layers: &'a SinglyLinkedList<HashMap<Strin
     }
 }
 
-fn lookup_symbol(sym: &String, env: &Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>> ) -> EvalResult<Expression> {
+fn lookup_symbol(sym: &String, env: &Environment, local_vars: &LocalVars ) -> EvalResult<Expression> {
     if let Some(special_form_type) = env.special_forms.get(sym) {
         Ok(Expression::SpecialForm(special_form_type.clone()))
     } else if let Some(built_in) = env.built_in_fns.get(sym) {
@@ -187,25 +176,54 @@ fn lookup_symbol(sym: &String, env: &Environment, local_vars: &SinglyLinkedList<
     }
 }
 
-fn eval_expression(expr: Expression, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> EvalResult<Expression> {
+fn eval_array(array: &Vec<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
+    let evaled_array = array.into_iter().map(|x| eval_expression(x.clone(), env, local_vars)).collect();
+    match util::map_m(evaled_array) {
+        Ok(correctly_evaled_array) => { Ok (Expression::Array(correctly_evaled_array))}
+        Err(err) => Err(err)
+    }
+}
+
+fn eval_map(map: &MapType, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
+    match map {
+        MapType::PostEvaluation(_) => { Ok(Expression::Map(map.clone())) }
+        MapType::PreEvaluation(tuples) => {
+            let correctly_evaled_map = vector_of_tuples_to_hash_map_atom(&tuples, env, local_vars)?;
+            Ok(Expression::Map(MapType::PostEvaluation(correctly_evaled_map)))
+        }
+    }
+}
+
+fn eval_list(list_elements: &VecDeque<Expression>, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
+    // TODO: This is a bit bad, I'd rather avoid mutability and clones and shit
+    let mut here = list_elements.clone();
+
+    if here.len() == 0 {
+        Ok(Expression::List(here))
+    } else {
+        let caller = eval_expression(here[0].clone(), env, local_vars)?;
+        here.pop_front();
+        match caller {
+            Expression::SpecialForm(special_form_type) => call_special_form(special_form_type.clone(), here, env, local_vars),
+            Expression::Function(fn_type) => call_function(fn_type, here, env, local_vars),
+            _ => Err(EvaluationError::NotSpecialFormOrFunction)
+        }
+    }
+}
+
+fn eval_expression(expr: Expression, env: &mut Environment, local_vars: &LocalVars) -> EvalResult<Expression> {
     match expr {
         Expression::At(Atom::Symbol(sym)) => lookup_symbol(&sym, env, local_vars),
         Expression::At(_) => Ok(expr),
         Expression::Function(_) => Ok(expr),
         Expression::SpecialForm(_) => Err(EvaluationError::SpecialFormOutOfContext), // TODO: Impossible due to lookup
-        Expression::Array(_) => Ok(expr), // TODO: Has to eval elements
-        Expression::List(op, args) => {
-            let caller = eval_expression(*op, env, local_vars)?;
-            match caller {
-                Expression::SpecialForm(special_form_type) => call_special_form(special_form_type.clone(), args, env, local_vars),
-                Expression::Function(fn_type) => call_function(fn_type, args, env, local_vars),
-                _ => Err(EvaluationError::NotSpecialFormOrFunction)
-            }
-        }
+        Expression::Array(array) => eval_array(&array, env, local_vars),
+        Expression::Map(map) => eval_map(&map, env, local_vars),
+        Expression::List(list) => eval_list(&list, env, local_vars)
     }
 }
 
-pub fn eval(expr: Expression, env: &mut Environment, local_vars: &SinglyLinkedList<HashMap<String, Expression>>) -> String {
+pub fn eval(expr: Expression, env: &mut Environment, local_vars: &LocalVars) -> String {
     let evaled_expr = eval_expression(expr, env, local_vars);
     format!("{:?}", evaled_expr)
 }

@@ -1,4 +1,4 @@
-use types::{Expression, EvaluationError, EvalResult, Atom, Environment, SpecialForm, SinglyLinkedList};
+use types::{Expression, EvaluationError, EvalResult, Atom, Environment, SpecialForm, SinglyLinkedList, MapType};
 use std::collections::HashMap;
 
 // TODO: Built-in fns estão pedreiras
@@ -15,6 +15,29 @@ fn neg(args: Vec<Expression>) -> EvalResult<Expression> {
                 )),
             },
             _ => Err(EvaluationError::WrongType("not atom".parse().unwrap())),
+        }
+    }
+}
+
+fn eq(args: Vec<Expression>) -> EvalResult<Expression> {
+    let args_amount = args.len();
+    if args_amount != 2 {
+        Err(EvaluationError::WrongArity(2, args_amount as i64))
+    } else {
+        Ok(Expression::At(Atom::Bool(args[0] == args[1])))
+    }
+}
+
+fn compare(args: Vec<Expression>) -> EvalResult<Expression> {
+    let args_amount = args.len();
+    if args_amount != 2 {
+        Err(EvaluationError::WrongArity(2, args_amount as i64))
+    } else {
+        match (&args[0], &args[1]) {
+            (Expression::At(Atom::Int(x)), Expression::At(Atom::Int(y))) => {
+                Ok(Expression::At(Atom::Bool(x < y)))
+            },
+            _ => Err(EvaluationError::WrongType("Can only compare two integers".parse().unwrap()))
         }
     }
 }
@@ -81,6 +104,53 @@ fn sum(args: Vec<Expression>) -> EvalResult<Expression> {
         })
 }
 
+fn assoc(args: Vec<Expression>) -> EvalResult<Expression> {
+    if args.len() < 3 {
+        Err(EvaluationError::WrongArity(3, args.len() as i64))
+    } else if let Expression::Map(MapType::PostEvaluation(mut map)) = args[0].clone() {
+        if let Expression::At(atom) = args[1].clone() {
+            map.insert(atom, args[2].clone());
+            Ok(Expression::Map(MapType::PostEvaluation(map)))
+        } else {
+            Err(EvaluationError::WrongType("key must be atom".parse().unwrap()))
+        }
+    } else {
+        Err(EvaluationError::WrongType("can only associate in a map".parse().unwrap()))
+    }
+}
+
+fn dissoc(args: Vec<Expression>) -> EvalResult<Expression> {
+    if args.len() < 2 {
+        Err(EvaluationError::WrongArity(2, args.len() as i64))
+    } else if let Expression::Map(MapType::PostEvaluation(mut map)) = args[0].clone() {
+        if let Expression::At(atom) = &args[1] {
+            map.remove(atom);
+            Ok(Expression::Map(MapType::PostEvaluation(map)))
+        } else {
+            Err(EvaluationError::WrongType("key must be atom".parse().unwrap()))
+        }
+    } else {
+        Err(EvaluationError::WrongType("can only dissociate in a map".parse().unwrap()))
+    }
+}
+
+fn get(args: Vec<Expression>) -> EvalResult<Expression> {
+    if args.len() < 2 {
+        Err(EvaluationError::WrongArity(2, args.len() as i64))
+    } else if let Expression::Map(MapType::PostEvaluation(map)) = args[0].clone() {
+        if let Expression::At(atom) = &args[1] {
+            match map.get(atom) {
+                Some(exp) => { Ok(exp.clone()) },
+                None => { Ok(Expression::At(Atom::Nil)) },
+            }
+        } else {
+            Err(EvaluationError::WrongType("key must be atom".parse().unwrap()))
+        }
+    } else {
+        Err(EvaluationError::WrongType("can only dissociate in a map".parse().unwrap()))
+    }
+}
+
 pub fn initial_env() -> (Environment, SinglyLinkedList<'static, HashMap<String, Expression>>) {
     let mut special_forms = HashMap::<String, SpecialForm>::new();
     let mut built_ins = HashMap::<String, fn(Vec<Expression>) -> EvalResult<Expression>>::new();
@@ -90,6 +160,11 @@ pub fn initial_env() -> (Environment, SinglyLinkedList<'static, HashMap<String, 
     built_ins.insert("*".to_string(), mul);
     built_ins.insert("/".to_string(), div);
     built_ins.insert("neg".to_string(), neg);
+    built_ins.insert("eq".to_string(), eq);
+    built_ins.insert("<".to_string(), compare);
+    built_ins.insert("assoc".to_string(), assoc);
+    built_ins.insert("dissoc".to_string(), dissoc);
+    built_ins.insert("get".to_string(), get);
 
     special_forms.insert("quote".to_string(), SpecialForm::Quote);
     special_forms.insert("if".to_string(), SpecialForm::If);

@@ -1,0 +1,13 @@
+(def my-fn! (fn
+  [x y z]
+  (let [sum1 (+ x y)
+        x    (* y (if (< x y) z (neg z)))]
+   {"result" x})))
+
+(def my-other-fn! (fn
+  [j]
+  (assoc (my-fn! j j j) "sou eu" "gc")))
+
+(my-other-fn! 10)
+
+(def main! (fn [] (my-other-fn! 15)))
